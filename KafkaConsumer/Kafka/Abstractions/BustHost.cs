@@ -6,19 +6,26 @@ public abstract class BusHost: IHostedService
 {
     public IConfiguration Configuration { get; }
     public IHostEnvironment Env { get; }
-    public IHost Host { get; }
-    
-    protected BusHost(IConfiguration configuration, IHostEnvironment env, IHost host)
+    // public IHost Host { get; }
+    protected IServiceProvider Services { get; }   // ✅ thay vì IHost
+
+
+    protected BusHost(IConfiguration configuration,
+        IHostEnvironment env, 
+        IServiceProvider services
+        // IHost host
+        )
     {
-        Configuration = configuration;
-        Env = env;
-        Host = host;
+        Configuration = configuration  ?? throw new ArgumentNullException(nameof(configuration));;
+        Env = env ?? throw new ArgumentNullException(nameof(env));
+        Services = services ?? throw new ArgumentNullException(nameof(services));
+        // Host = host ?? throw new ArgumentNullException(nameof(host));
+        
     }
 
-    // Đăng ký consumer
-    public abstract void ConfigureBusConsumers(IBusRegistrationConfigurator services);
-
-    // Đăng ký service thường
+    /// <summary>
+    /// Configure services for dependency injection
+    /// </summary>
     public abstract void ConfigureServices(IServiceCollection services);
 
     // Nếu muốn handle endpoint custom (Kafka/Rabbit tuỳ bạn)
@@ -27,19 +34,33 @@ public abstract class BusHost: IHostedService
         IServiceProvider provider,
         IKafkaTopicReceiveEndpointConfigurator configurator);
     
+    /// <summary>
+    /// Called after bus starts - override for custom startup logic
+    /// </summary>
     public virtual Task ServiceStart(CancellationToken cancellationToken) => Task.CompletedTask;
+    /// <summary>
+    /// Called before bus stops - override for custom cleanup logic
+    /// </summary>
     public virtual Task ServiceStop(CancellationToken cancellationToken) => Task.CompletedTask;
 
     
     public async Task StartAsync(CancellationToken cancellationToken)
     {
-        var service = Host.Services.GetService<IBusControl>();
-        if (service != null)
+        try
         {
-            await service.StartAsync(cancellationToken);
-        }
+            var service = Services.GetService<IBusControl>();
+            // var service = Host.Services.GetService<IBusControl>();
+            if (service != null)
+            {
+                await service.StartAsync(cancellationToken);
+            }
 
-        await ServiceStart(cancellationToken);
+            await ServiceStart(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException($"Failed to start {GetType().Name}: {ex.Message}", ex);
+        }
     }
 
     public async Task StopAsync(CancellationToken cancellationToken)
@@ -48,9 +69,15 @@ public abstract class BusHost: IHostedService
         {
             await ServiceStop(cancellationToken);
         }
+        catch (Exception ex)
+        {
+            // Log but don't throw during shutdown
+            Console.WriteLine($"Error during {GetType().Name} shutdown: {ex.Message}");
+        }
         finally
         {
-            var service = Host.Services.GetService<IBusControl>();
+            var service = Services.GetService<IBusControl>();
+            // var service = Host.Services.GetService<IBusControl>();
             if (service != null)
                 await service.StopAsync(cancellationToken);
         }

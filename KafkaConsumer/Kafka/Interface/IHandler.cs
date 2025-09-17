@@ -1,6 +1,6 @@
 namespace KafkaConsumer.Kafka.Interface;
 
-public interface IHandler
+public interface IHandler<T>
 {
-    
+    Task Handle(HandleContext<T> context, CancellationToken cancelToken);
 }

@@ -1,9 +1,7 @@
-namespace AccountService.Models;
+namespace Business.Models;
 
-public class WorkerMesssage
+public class TestMessage
 {
-    public class TestMessage
-    {
-        
-    }
+    public string Id { get; set; } = string.Empty;
+    public string Content { get; set; } = string.Empty;
 }
