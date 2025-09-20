@@ -1,12 +1,14 @@
 using Confluent.Kafka;
 using KafkaConsumer;
 using KafkaConsumer.Kafka;
-using KafkaConsumer.Kafka.Interface;
 using KafkaConsumer.Models;
+using MassTransit;
+using Serilog;
+using Serilog.Events;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
-public static class KafkaServiceCollectionExtensions
+public static class KafkaServiceExtensions
 {
     /// <summary>
     /// Register a bus host as both singleton and hosted service
@@ -58,6 +60,33 @@ public static class KafkaServiceCollectionExtensions
         services.AddSingleton(config);
         
         return new KafkaBuilder(services, configuration);
+    }
+    
+    /// <summary>
+    /// Just an example, but some retry/kill switch combination to stop processing when the consumer/saga faults repeatedly.
+    /// </summary>
+    /// <param name="configurator"></param>
+    public static void UseSampleRetryConfiguration(this IKafkaTopicReceiveEndpointConfigurator configurator)
+    {
+        configurator.UseKillSwitch(k => k.SetActivationThreshold(1).SetRestartTimeout(m: 1).SetTripThreshold(0.2).SetTrackingPeriod(m: 1));
+        configurator.UseMessageRetry(retry => retry.Interval(1000, TimeSpan.FromSeconds(1)));
+    }
+    
+    public static T ConfigureSerilog<T>(this T builder)
+        where T : IHostBuilder
+    {
+        Log.Logger = new LoggerConfiguration()
+            .MinimumLevel.Information()
+            .MinimumLevel.Override("MassTransit", LogEventLevel.Debug)
+            .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
+            .MinimumLevel.Override("Microsoft.Hosting", LogEventLevel.Information)
+            .Enrich.FromLogContext()
+            .WriteTo.Console()
+            .CreateLogger();
+
+        builder.UseSerilog();
+
+        return builder;
     }
 }
 

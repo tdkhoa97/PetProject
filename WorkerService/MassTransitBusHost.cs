@@ -24,64 +24,62 @@ public class MassTransitBusHost: BusHost
             {
                 rider.AddConsumer<TestConsumer>();
 
+                
+                x.UsingInMemory((context, cfg) =>
+                {
+                    cfg.ConfigureEndpoints(context);
+                });
+                
                 rider.UsingKafka((context, kafkaFactory) =>
                 {
-                    var kafkaSettings = Configuration.GetSection("Kafka").Get<KafkaSettings>();
-                    if (kafkaSettings == null)
-                        throw new InvalidOperationException("Kafka configuration missing.");
-                    
-                    var sslCaFullPath = Path.Combine(AppContext.BaseDirectory, kafkaSettings.SslCaLocation);
-
-                    kafkaFactory.SecurityProtocol = SecurityProtocol.Ssl;
-                    kafkaFactory.Host(kafkaSettings.BootstrapServers, h =>
-                    {
-                        // Nếu cần security credential thì add ở đây
-                        h.UseSsl(cfg =>
-                        {
-                            cfg.CaLocation = sslCaFullPath;
-                            cfg.EndpointIdentificationAlgorithm = SslEndpointIdentificationAlgorithm.None;
-                            cfg.EnableCertificateVerification = true;
-                        });
-                    });
+                    var settings = GetKafkaSettings();
+                    ConfigureKafka(kafkaFactory, settings);
                     
                     kafkaFactory.TopicEndpoint<TestMessage>(
                         topicName: "test-topic", "test-group", e =>
                         {
+                            e.UseExecute(ctx =>
+                            {
+                                if (ctx.TryGetPayload<KafkaConsumeContext>(out var cr))
+                                {
+                                    Console.WriteLine($"[Execute] Topic: {cr.Topic}, Partition: {cr.Partition}, Offset: {cr.Offset}");
+                                }
+                                
+                            });
+                            
+                            e.UseSampleRetryConfiguration();
                             e.ConfigureConsumer<TestConsumer>(context);
                         });
                 });
-            });
-
-            x.UsingInMemory((context, cfg) =>
-            {
-                cfg.ConfigureEndpoints(context);
             });
         });
         
         // AddKafkaConfig(services);
     }
+    
+    private KafkaSettings GetKafkaSettings()
+    {
+        var settings = Configuration.GetSection("Kafka").Get<KafkaSettings>();
+        if (settings == null)
+            throw new InvalidOperationException("Kafka configuration missing.");
+        return settings;
+    }
+    
+    private void ConfigureKafka(IKafkaFactoryConfigurator kafka, KafkaSettings settings)
+    {
+        var sslCaFullPath = Path.Combine(AppContext.BaseDirectory, settings.SslCaLocation);
 
-    /// <summary>
-    /// Override this method to register your consumers
-    /// </summary>
-    protected virtual void ConfigureConsumers(IBusRegistrationConfigurator configurator)
-    {
-        // Example:
-        // configurator.AddConsumer<YourMessageConsumer>();
+        kafka.SecurityProtocol = SecurityProtocol.Ssl;
+        kafka.Host(settings.BootstrapServers, h =>
+        {
+            h.UseSsl(cfg =>
+            {
+                cfg.CaLocation = sslCaFullPath;
+                cfg.EndpointIdentificationAlgorithm = SslEndpointIdentificationAlgorithm.None;
+                cfg.EnableCertificateVerification = true;
+            });
+        });
     }
-    
-    /// <summary>
-    /// Override this method to configure your Kafka topics and endpoints
-    /// </summary>
-    protected virtual void ConfigureKafkaTopics(IRiderRegistrationContext context, IKafkaFactoryConfigurator kafkaConfig)
-    {
-        // Example:
-        // kafkaConfig.TopicEndpoint<YourMessage>("your-topic", "consumer-group", e =>
-        // {
-        //     e.ConfigureConsumer<YourMessageConsumer>(context);
-        // });
-    }
-    
     
     public override void ConfigureBusHandler(string topic, IServiceProvider provider, IKafkaTopicReceiveEndpointConfigurator configurator)
     {
@@ -96,20 +94,8 @@ public class MassTransitBusHost: BusHost
 
         if (Env.IsDevelopment())
         {
-            ConfigureKafkaConsumers(services);
+            // ConfigureKafkaConsumers(services);
         }
-    }
-    
-    private void ConfigureKafkaConsumers(IServiceCollection services)
-    {
-        Console.WriteLine("Topic TestGroup: {Topic}", Configuration["Kafka:Topics:TestGroup"]);
-
-        
-        services.AddKafkaBuilder(Configuration)
-            .AddMultiJsonHandler<TestConsumer>(
-                Configuration["Kafka:Topics:TestGroup"],
-                config => { config.AutoOffsetReset = AutoOffsetReset.Latest; })
-            ;
     }
     
     public override async Task ServiceStart(CancellationToken cancellationToken)
