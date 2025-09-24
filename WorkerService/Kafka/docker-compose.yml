@@ -8,7 +8,7 @@ services:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
     networks:
-      - kafka
+      - kafka-net
   kafka:
     image: confluentinc/cp-kafka:7.3.2
     container_name: kafka
@@ -35,7 +35,7 @@ services:
     volumes:
         - ./certs:/etc/kafka/secrets   # <-- Đây là mount volume để Kafka đọc cert
     networks:
-      - kafka
+      - kafka-net
       
 #  schema-registry:
 #    image: confluentinc/cp-schema-registry:7.3.2
@@ -57,6 +57,25 @@ services:
 #    entrypoint: [ "/bin/bash", "/entrypoint-schema.sh" ]
 #    networks:
 #      - kafka
+  
+  # === Thêm MySQL ===
+  mysql:
+    image: mysql:8.0
+    container_name: mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: rBEfkjqH92FdZLIN      # Mật khẩu root
+      MYSQL_DATABASE: testdb                  # DB mặc định
+    ports:
+      - "3306:3306"                           # publish cổng MySQL ra host
+    volumes:
+      - mysql-data:/var/lib/mysql             # lưu data bền vững
+    networks:
+      - mysql-net   # <-- MySQL nằm network riêng
 
-networks: 
-  kafka:
+networks:
+  kafka-net:
+  mysql-net:
+
+volumes:
+  mysql-data:
