@@ -1,6 +1,9 @@
+using System.Text;
 using AccountService.Data;
 using AccountService.Services;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -18,8 +21,27 @@ builder.Services.AddDbContext<UserDbContext>(options =>
         contextOptionsBuilder.UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery);
     });
 });
-    
+
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidIssuer = builder.Configuration["AppSettings:Issuer"],
+            ValidateAudience = true,
+            ValidAudience = builder.Configuration["AppSettings:Audience"],
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,    
+            IssuerSigningKey = new SymmetricSecurityKey(
+                Encoding.UTF8.GetBytes(builder.Configuration["AppSettings:Token"]!)),
+        };
+    });
+
+builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<ProducerService>();
+builder.Services.AddConfluentKafka(builder.Configuration);
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -52,9 +74,11 @@ app.MapGet("/weatherforecast", () =>
     })
     .WithName("GetWeatherForecast");
 
-app.MapGet("/event-producing", async (ProducerService producer, CancellationToken cancellationToken) =>
+app.MapGet("/event-producing", async (ProducerService producer,
+    string content,
+    CancellationToken cancellationToken) =>
 {
-    await producer.ProduceAsync(cancellationToken);
+    await producer.ProduceAsync(content, cancellationToken);
     return "Event sent";
 });
 

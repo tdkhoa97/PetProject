@@ -19,7 +19,7 @@ public class TestConsumer : IConsumer<TestMessage>
     {
         var message = context.Message; // TestMessage object
         
-        Console.WriteLine($"Processing TestMessage - Id: {message.Id}, Content: {message.Content}"); 
+        Console.WriteLine($"{DateTime.UtcNow} Processing TestMessage - Id: {message.Id}, Content: {message.Content}"); 
         
         await Task.CompletedTask;
     }
