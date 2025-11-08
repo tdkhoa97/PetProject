@@ -1,20 +1,21 @@
-#cat > docker-compose.yml <<'EOF'  
-#version: '3'
+#cat > docker-compose.yml <<'EOF'
 #services:
 #  zookeeper:
 #    image: confluentinc/cp-zookeeper:7.3.2
-#    ports: 
+#    container_name: zookeeper
+#    ports:
 #      - "2181:2181"
 #    environment:
 #      ZOOKEEPER_CLIENT_PORT: 2181
 #      ZOOKEEPER_TICK_TIME: 2000
 #    networks:
 #      - kafka-net
+#
 #  kafka:
 #    image: confluentinc/cp-kafka:7.3.2
 #    container_name: kafka
 #    ports:
-#      - "9092:9092"   # PLAINTEXT (nếu cần)
+#      - "9092:9092"   # PLAINTEXT
 #      - "9093:9093"   # SSL
 #    environment:
 #      KAFKA_BROKER_ID: 1
@@ -25,7 +26,7 @@
 #      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
 #      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
 #      KAFKA_HEAP_OPTS: "-Xmx512M -Xms256M"
-#      # Cấu hình SSL
+#      # SSL configuration
 #      KAFKA_SSL_KEYSTORE_FILENAME: kafka.server.keystore.jks
 #      KAFKA_SSL_TRUSTSTORE_FILENAME: kafka.server.truststore.jks
 #      KAFKA_SSL_KEYSTORE_LOCATION: /etc/kafka/secrets/kafka.server.keystore.jks
@@ -34,7 +35,7 @@
 #      KAFKA_SSL_TRUSTSTORE_LOCATION: /etc/kafka/secrets/kafka.server.truststore.jks
 #      KAFKA_SSL_TRUSTSTORE_CREDENTIALS: truststore_creds
 #    volumes:
-#        - ./certs:/etc/kafka/secrets   # <-- Đây là mount volume để Kafka đọc cert
+#      - ./certs:/etc/kafka/secrets
 #    networks:
 #      - kafka-net
 #
@@ -55,10 +56,11 @@
 #    volumes:
 #      - ./certs:/etc/schema-registry/secrets
 #      - ./entrypoint-schema.sh:/entrypoint-schema.sh
-#    entrypoint: [ "/bin/bash", "/entrypoint-schema.sh" ]
+#    entrypoint: ["/bin/bash", "/entrypoint-schema.sh"]
 #    networks:
 #      - kafka-net
 #
-#networks: 
+#networks:
 #  kafka-net:
+#    driver: bridge
 #EOF
